@@ -58,26 +58,28 @@ let rec getPosts gatheredPosts nextPostId =
             (gatheredPosts |> List.length)
 
         let posts = callAndReturn nextPostId |> Async.AwaitTask |> Async.RunSynchronously
-        let lastPost = posts |> Seq.last
-
+        
         let allPosts = List.append gatheredPosts (posts |> List.ofSeq)
 
-        let olderThan30Days = lastPost.CreatedAt < System.DateTime.Now.AddDays(-30.0)
         let noMorePosts = posts.Count = 0
         let enoughOfPosts = allPosts.Length >= 1000
     
-        match (noMorePosts, olderThan30Days, enoughOfPosts) with
-        | (true, _, _) -> 
+        match (noMorePosts, enoughOfPosts) with
+        | (true, _) -> 
             printfn "No more posts"
             allPosts
-        | (_, true, _) ->
-            printfn "Older than 30 days"
-            allPosts
-        | (_, _, true) ->
+        | (_, true) ->
             printfn "Enough of posts"
             allPosts
         | _ ->
-            getPosts allPosts (Some lastPost.Id)
+            let lastPost = posts |> Seq.last
+            let olderThan30Days = lastPost.CreatedAt < System.DateTime.Now.AddDays(-30.0)
+            match olderThan30Days with
+            | true ->
+                printfn "Older than 30 days"
+                allPosts
+            | false ->
+                getPosts allPosts (Some lastPost.Id)
 
 let posts = getPosts [] None
  
