@@ -53,19 +53,3 @@ module PostSearch =
             printfn "Press any key to continue"
             System.Console.ReadKey() |> ignore
         )
-
-        
-        // getPostsFromFileOrWeb accessToken username
-        // |> List.iter (fun post -> 
-
-        //     // message can come from status content or reblog content
-        //     let message = 
-        //         match post.Reblog with
-        //         | null -> post.Content
-        //         | _ -> post.Reblog.Content
-
-        //     printfn "%s" message
-        //     printfn ""
-        //     printfn "Press any key to continue"
-        //     System.Console.ReadKey() |> ignore
-        // )
