@@ -32,14 +32,40 @@ module PostSearch =
 
     let run accessToken username (term:string) =
         
-        // see if we have posts saved
-        let posts = getPostsFromFileOrWeb accessToken username
-        
+        let getContentForStatus (status:Mastonet.Entities.Status) =
+            match status.Reblog with
+            | null -> status.Content
+            | _ -> status.Reblog.Content
+
         let postsWithTerm =
-            posts
-            |> List.filter (fun post -> post.Content.Contains(term, System.StringComparison.OrdinalIgnoreCase))
-        
+            getPostsFromFileOrWeb accessToken username
+            |> List.map (fun s -> (s, s |> getContentForStatus))
+            |> List.filter (fun (post, content) -> content.Contains(term, System.StringComparison.OrdinalIgnoreCase))
+            
         printfn "Found %i posts with term %s" postsWithTerm.Length term
 
         postsWithTerm
-        |> List.iter (fun post -> printfn "%s\n\n" post.Content)
+        |> List.iter (fun (post, content) ->
+            let link = post.Url
+            printfn "%s" content
+            printfn "%s" link
+            printfn "\n"
+            printfn "Press any key to continue"
+            System.Console.ReadKey() |> ignore
+        )
+
+        
+        // getPostsFromFileOrWeb accessToken username
+        // |> List.iter (fun post -> 
+
+        //     // message can come from status content or reblog content
+        //     let message = 
+        //         match post.Reblog with
+        //         | null -> post.Content
+        //         | _ -> post.Reblog.Content
+
+        //     printfn "%s" message
+        //     printfn ""
+        //     printfn "Press any key to continue"
+        //     System.Console.ReadKey() |> ignore
+        // )
