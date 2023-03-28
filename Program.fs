@@ -2,6 +2,14 @@
 
 type Something = { Name: string; Value: int }
 
+type AccessToken = string
+type Username = string
+type SearchTerm = string
+
+type Command =
+    | TimelineAnalysis of AccessToken * Username
+    | PostSearch of AccessToken * Username * SearchTerm
+
 let builder = new ConfigurationBuilder()
 builder.AddUserSecrets<Something>() |> ignore // had to create this type to get it to work
 let config = builder.Build()
@@ -14,14 +22,24 @@ match accessToken with
 | _ -> // good to go
 
 System.Console.WriteLine("Enter username:")
-let username = System.Console.ReadLine()
+let username = System.Console.ReadLine().Trim()
 
-// the command line parameter will provide the search term
-let term = System.Environment.GetCommandLineArgs() |> Array.tryItem 1
+match username with
+| "" -> 
+    printfn "No username, please enter a username"
+    System.Environment.Exit(1)
+| _ -> // good to go
 
-match term with
-| None -> 
-    MastodonPlayground.TimelineAnalysis.run accessToken username
-    
-| Some termValue ->
+let command = 
+    let term = System.Environment.GetCommandLineArgs() |> Array.tryItem 1
+    match term with
+    | None -> 
+        TimelineAnalysis(accessToken, username)
+    | Some termValue ->
+        PostSearch(accessToken, username, termValue)
+
+match command with
+| TimelineAnalysis(accessToken, username) ->
+    MastodonPlayground.TimelineAnalysis.run accessToken username  
+| PostSearch(accessToken, username, termValue) ->
     MastodonPlayground.PostSearch.run accessToken username termValue
