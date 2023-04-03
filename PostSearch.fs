@@ -3,9 +3,11 @@ namespace MastodonPlayground
 module PostSearch =
 
     let private toFilename username = 
+        // filename should include the timestamp so that we can refresh the data
+        let timestamp = System.DateTime.Now.ToString("yyyyMMddHHmm")
         System.IO.Path.Combine(
             System.IO.Path.GetTempPath(),
-            $"posts-{username}.json"
+            $"posts-{username}-{timestamp}.json"
         )
 
     let private getPostsFromFileOrWeb accessToken username =
@@ -40,7 +42,7 @@ module PostSearch =
         let postsWithTerm =
             getPostsFromFileOrWeb accessToken username
             |> List.map (fun s -> (s, s |> getContentForStatus))
-            |> List.filter (fun (post, content) -> content.Contains(term, System.StringComparison.OrdinalIgnoreCase))
+            |> List.filter (fun (_, content) -> content.Contains(term, System.StringComparison.OrdinalIgnoreCase))
             
         printfn "Found %i posts with term %s" postsWithTerm.Length term
 
@@ -52,4 +54,5 @@ module PostSearch =
             printfn "\n"
             printfn "Press any key to continue"
             System.Console.ReadKey() |> ignore
+            System.Console.Clear() |> ignore
         )

@@ -7,6 +7,7 @@ type Username = string
 type SearchTerm = string
 
 type Command =
+    | PrintHelp
     | TimelineAnalysis of AccessToken * Username
     | PostSearch of AccessToken * Username * SearchTerm
 
@@ -21,24 +22,44 @@ match accessToken with
     System.Environment.Exit(1)
 | _ -> // good to go
 
-System.Console.WriteLine("Enter username:")
-let username = System.Console.ReadLine().Trim()
+let collectUsername() =
+    System.Console.WriteLine("Enter username:")
+    let username = System.Console.ReadLine().Trim()
 
-match username with
-| "" -> 
-    printfn "No username, please enter a username"
-    System.Environment.Exit(1)
-| _ -> // good to go
+    match username with
+    | "" -> 
+        printfn "No username, please enter a username"
+        System.Environment.Exit(1)
+        None
+    | _ -> 
+        Some username
+
 
 let command = 
     let term = System.Environment.GetCommandLineArgs() |> Array.tryItem 1
     match term with
     | None -> 
-        TimelineAnalysis(accessToken, username)
-    | Some termValue ->
-        PostSearch(accessToken, username, termValue)
+        PrintHelp
+    | Some command ->
+        match command with
+        | "timeline" -> 
+            let username = collectUsername() |> Option.get
+            TimelineAnalysis(accessToken, username)
+        | "search" ->
+            let termValue = System.Environment.GetCommandLineArgs() |> Array.tryItem 2
+            match termValue with
+            | None -> PrintHelp
+            | Some termValue ->
+                let username = collectUsername() |> Option.get
+                PostSearch(accessToken, username, termValue)
+        | _ -> PrintHelp
 
 match command with
+| PrintHelp -> 
+    printfn "Usage: dotnet run <command> <search term>"
+    printfn "Commands:"
+    printfn "  timeline - Analyze the timeline of a user"
+    printfn "  search - Search for a term in a user's posts"
 | TimelineAnalysis(accessToken, username) ->
     MastodonPlayground.TimelineAnalysis.run accessToken username  
 | PostSearch(accessToken, username, termValue) ->

@@ -32,7 +32,7 @@ module MastodonClientAdapter =
             | None -> ()
 
             let onlyMedia = false
-            let excludeReplies = true
+            let excludeReplies = false
             let pinned = false
             let excludeReblogs = false
 
