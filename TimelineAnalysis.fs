@@ -4,7 +4,7 @@ module TimelineAnalysis =
 
     let run accessToken username =
         
-        let postsOption = MastodonClientAdapter.getPosts accessToken username
+        let postsOption = MastodonClientAdapter.getPosts accessToken username MastodonClientAdapter.ExcludeReplies
 
         let posts =
             match postsOption with

@@ -1,6 +1,7 @@
 namespace MastodonPlayground
 
 module PostSearch =
+    open MastodonClientAdapter
 
     let private toFilename username = 
         // filename should include the timestamp so that we can refresh the data
@@ -21,7 +22,7 @@ module PostSearch =
             Newtonsoft.Json.JsonConvert.DeserializeObject<List<Mastonet.Entities.Status>>(json)
         | false ->
             printfn "Getting posts from API"
-            let postsOption = MastodonClientAdapter.getPosts accessToken username
+            let postsOption = getPosts accessToken username All
 
             match postsOption with
             | None -> 
