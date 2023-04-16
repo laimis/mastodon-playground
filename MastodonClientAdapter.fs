@@ -38,10 +38,10 @@ module MastodonClientAdapter =
             | Some id -> opt.MaxId <- id
             | None -> ()
 
-            let onlyMedia = match postFiltering with | OnlyMedia -> true | _ -> false
-            let excludeReplies = match postFiltering with | ExcludeReplies -> true | _ -> false
-            let pinned = match postFiltering with | Pinned -> true | All -> true |  _ -> false
-            let excludeReblogs = match postFiltering with | ExcludeReblogs -> true | _ -> false
+            let onlyMedia = false //match postFiltering with | OnlyMedia -> true | _ -> false
+            let excludeReplies = false // match postFiltering with | ExcludeReplies -> true | _ -> false
+            let pinned = false //match postFiltering with | Pinned -> true | All -> true |  _ -> false
+            let excludeReblogs = false //match postFiltering with | ExcludeReblogs -> true | _ -> false
 
             client.GetAccountStatuses(
                 (account.Id),opt,onlyMedia,excludeReplies,pinned,excludeReblogs
