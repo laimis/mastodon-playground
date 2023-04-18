@@ -3,24 +3,14 @@ namespace MastodonPlayground
 module PostSearch =
     open MastodonClientAdapter
 
-    let private toFilename username = 
-        // filename should include the timestamp so that we can refresh the data
-        let timestamp = System.DateTime.Now.ToString("yyyyMMddHHmm")
-        System.IO.Path.Combine(
-            System.IO.Path.GetTempPath(),
-            $"posts-{username}-{timestamp}.json"
-        )
 
     let private getPostsFromFileOrWeb accessToken username =
-        let postsFile = toFilename username
+        let localCache = FileAccess.getUserPosts username
 
-        let exists = System.IO.File.Exists(postsFile)
-        match exists with
-        | true ->
-            printfn "Loading posts from file %s" postsFile
-            let json = System.IO.File.ReadAllText(postsFile)
-            Newtonsoft.Json.JsonConvert.DeserializeObject<List<Mastonet.Entities.Status>>(json)
-        | false ->
+        match localCache with
+        | Some content ->
+            Newtonsoft.Json.JsonConvert.DeserializeObject<List<Mastonet.Entities.Status>>(content)
+        | None ->
             printfn "Getting posts from API"
             let postsOption = getPosts accessToken username All
 
@@ -29,8 +19,8 @@ module PostSearch =
                 printfn "No posts found"
                 []
             | Some posts -> 
-                let json = Newtonsoft.Json.JsonConvert.SerializeObject(posts)
-                System.IO.File.WriteAllText(postsFile, json)
+                Newtonsoft.Json.JsonConvert.SerializeObject(posts)
+                    |> FileAccess.saveUserPosts username
                 posts
 
     let run accessToken username (term:string) =

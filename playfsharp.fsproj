@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="MastodonClientAdapter.fs" />
+    <Compile Include="FileAccess.fs" />
     <Compile Include="PostSearch.fs" />
     <Compile Include="TimelineAnalysis.fs" />
     <Compile Include="Program.fs" />
