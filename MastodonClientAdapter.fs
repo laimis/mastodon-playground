@@ -4,15 +4,8 @@ module MastodonClientAdapter =
 
     let private dayCutoff = 60
     let private instanceUrl = "https://mstdn.social"
-
-    type PostFiltering =
-        | All
-        | OnlyMedia
-        | ExcludeReplies
-        | Pinned
-        | ExcludeReblogs
-
-    let getPosts accessToken username postFiltering =
+    
+    let getPosts accessToken username =
         
         let client = new Mastonet.MastodonClient(instanceUrl, accessToken)
 
@@ -38,10 +31,10 @@ module MastodonClientAdapter =
             | Some id -> opt.MaxId <- id
             | None -> ()
 
-            let onlyMedia = false //match postFiltering with | OnlyMedia -> true | _ -> false
-            let excludeReplies = false // match postFiltering with | ExcludeReplies -> true | _ -> false
-            let pinned = false //match postFiltering with | Pinned -> true | All -> true |  _ -> false
-            let excludeReblogs = false //match postFiltering with | ExcludeReblogs -> true | _ -> false
+            let onlyMedia = false
+            let excludeReplies = false
+            let pinned = false
+            let excludeReblogs = false
 
             client.GetAccountStatuses(
                 (account.Id),opt,onlyMedia,excludeReplies,pinned,excludeReblogs
@@ -81,6 +74,6 @@ module MastodonClientAdapter =
 
         printfn "Getting posts"
 
-        let posts = getPosts true [] None
+        let posts = getPosts (Configuration.isVerbose) [] None
 
         Some posts

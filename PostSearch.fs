@@ -5,21 +5,28 @@ module PostSearch =
 
 
     let private getPostsFromFileOrWeb accessToken username =
-        let localCache = FileAccess.getUserPosts username
+        
+        let localCache =
+            match Configuration.doUseCache with
+            | true ->
+                printfn "Getting posts from cache"
+                FileAccess.getUserPosts username
+            | false -> None
 
         match localCache with
         | Some content ->
-            Newtonsoft.Json.JsonConvert.DeserializeObject<List<Mastonet.Entities.Status>>(content)
+            content |> Serialization.deserialize<List<Mastonet.Entities.Status>>
         | None ->
             printfn "Getting posts from API"
-            let postsOption = getPosts accessToken username All
+            let postsOption = getPosts accessToken username
 
             match postsOption with
             | None -> 
                 printfn "No posts found"
                 []
             | Some posts -> 
-                Newtonsoft.Json.JsonConvert.SerializeObject(posts)
+                posts 
+                    |> Serialization.serialize
                     |> FileAccess.saveUserPosts username
                 posts
 

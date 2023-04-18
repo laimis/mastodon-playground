@@ -5,7 +5,9 @@
     <UserSecretsId>ecb870e8-c63d-4c24-95a6-fa2e7ea6724f</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Configuration.fs" />
     <Compile Include="MastodonClientAdapter.fs" />
+    <Compile Include="Serialization.fs" />
     <Compile Include="FileAccess.fs" />
     <Compile Include="PostSearch.fs" />
     <Compile Include="TimelineAnalysis.fs" />

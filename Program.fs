@@ -48,8 +48,10 @@ let collectUsername() =
         Some username
 
 
+let commandLineArgs = System.Environment.GetCommandLineArgs()
+
 let command = 
-    let term = System.Environment.GetCommandLineArgs() |> Array.tryItem 1
+    let term = commandLineArgs |> Array.tryItem 1
     match term with
     | None -> 
         PrintHelp
@@ -59,7 +61,7 @@ let command =
             let username = collectUsername() |> Option.get
             TimelineAnalysis(accessToken, username)
         | "search" ->
-            let termValue = System.Environment.GetCommandLineArgs() |> Array.tryItem 2
+            let termValue = commandLineArgs |> Array.tryItem 2
             match termValue with
             | None -> 
                 PrintHelpWithError "No search term provided"
@@ -67,6 +69,9 @@ let command =
                 let username = collectUsername() |> Option.get
                 PostSearch(accessToken, username, termValue)
         | _ -> PrintHelp
+
+commandLineArgs |> Array.contains "--verbose" |> MastodonPlayground.Configuration.setVerbose
+commandLineArgs |> Array.contains "--cached" |> MastodonPlayground.Configuration.setUseCache
 
 match command with
 | PrintHelp -> 
