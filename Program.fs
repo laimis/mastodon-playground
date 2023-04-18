@@ -8,6 +8,7 @@ type SearchTerm = string
 
 type Command =
     | PrintHelp
+    | PrintHelpWithError of string
     | TimelineAnalysis of AccessToken * Username
     | PostSearch of AccessToken * Username * SearchTerm
 
@@ -15,6 +16,18 @@ let builder = new ConfigurationBuilder()
 builder.AddUserSecrets<Something>() |> ignore // had to create this type to get it to work
 let config = builder.Build()
 let accessToken = config["accesstoken"]
+
+let printUsage() =
+    printfn "Usage: dotnet run <command> <search term>"
+    printfn "Commands:"
+    printfn "  timeline - Analyze the timeline of a user"
+    printfn "  search - Search for a term in a user's posts"
+
+let printError (error:string) =
+    let originalColor = System.Console.ForegroundColor;
+    System.Console.ForegroundColor <- System.ConsoleColor.Red;
+    System.Console.Error.WriteLine(error);
+    System.Console.ForegroundColor <- originalColor;
 
 match accessToken with
 | null -> 
@@ -48,7 +61,8 @@ let command =
         | "search" ->
             let termValue = System.Environment.GetCommandLineArgs() |> Array.tryItem 2
             match termValue with
-            | None -> PrintHelp
+            | None -> 
+                PrintHelpWithError "No search term provided"
             | Some termValue ->
                 let username = collectUsername() |> Option.get
                 PostSearch(accessToken, username, termValue)
@@ -56,10 +70,10 @@ let command =
 
 match command with
 | PrintHelp -> 
-    printfn "Usage: dotnet run <command> <search term>"
-    printfn "Commands:"
-    printfn "  timeline - Analyze the timeline of a user"
-    printfn "  search - Search for a term in a user's posts"
+    printUsage()
+| PrintHelpWithError error ->
+    printError error
+    printUsage()
 | TimelineAnalysis(accessToken, username) ->
     MastodonPlayground.TimelineAnalysis.run accessToken username  
 | PostSearch(accessToken, username, termValue) ->
