@@ -7,9 +7,13 @@ module LuceneExperiment =
     open Lucene.Net.Index
     open Lucene.Net.Documents
     open Lucene.Net.Search
+    open Lucene.Net.Facet.Taxonomy
+    open Lucene.Net.Facet.Taxonomy.Directory
+    open Lucene.Net.Facet
 
     let private luceneVersion = LuceneVersion.LUCENE_48;
     let private luceneIndexLocation = FileAccess.getTempDirectoryPath "luceneIndex";
+    let private luceneTaxonomyLocation = FileAccess.getTempDirectoryPath "luceneTaxonomy";
 
     let getPostsForIndexing accessToken username =
         match Configuration.doUseCache with
@@ -32,41 +36,52 @@ module LuceneExperiment =
             | None -> 
                 []
             | Some unwrapped -> unwrapped
-    let private toDocument (post:Mastonet.Entities.Status) =
+
+    let private toDocumentWithCategories (post:Mastonet.Entities.Status) =
         let doc = new Document();
         
         doc.Add(new TextField("author", post.Account.AccountName, Field.Store.YES));
         doc.Add(new TextField("content", post.Content, Field.Store.YES));
         doc.Add(new TextField("url", post.Url, Field.Store.YES));
         doc.Add(new TextField("created_at", post.CreatedAt.ToString("o"), Field.Store.YES));
-
+        doc.Add(new FacetField("created", post.CreatedAt.Year.ToString(), post.CreatedAt.Month.ToString()))
+        
         // add tags as separate fields
         post.Tags |> Seq.iter (fun t -> doc.Add(new TextField("tag", t.Name, Field.Store.YES)));
-        
+        post.Tags |> Seq.iter (fun t -> doc.Add(new FacetField("tag", t.Name)))
+
         doc
 
     let private indexPostsInternal posts =
         
         printfn "Lucene index location: %s" luceneIndexLocation
 
+        // facet bits
+        use taxonomyDir = FSDirectory.Open(luceneTaxonomyLocation);
+        use taxonomyWriter = new DirectoryTaxonomyWriter(taxonomyDir, OpenMode.CREATE)
+        let facetConfig = new FacetsConfig()
+        facetConfig.SetMultiValued("tag", true)
+        facetConfig.SetHierarchical("created", true)
+        
+        // index writing bits
         use indexDir = FSDirectory.Open(luceneIndexLocation);
-
-        //Create an analyzer to process the text 
         let standardAnalyzer = new StandardAnalyzer(luceneVersion);
-
-        //Create an index writer
         let indexConfig = new IndexWriterConfig(luceneVersion, standardAnalyzer);
         indexConfig.OpenMode <- OpenMode.CREATE
         use writer = new IndexWriter(indexDir, indexConfig);
-
+        
         let addToIndex doc =
-            writer.AddDocument(doc)
+            let builtDocument = facetConfig.Build(taxonomyWriter, doc)
+            writer.AddDocument(builtDocument)
 
         //add posts to index
-        posts |> List.map toDocument |> List.iter addToIndex
+        posts
+        |> List.map toDocumentWithCategories
+        |> List.iter addToIndex
 
         //Flush and commit the index data to the directory
         writer.Commit();
+        taxonomyWriter.Commit()
 
     let indexPosts accessToken username =
 
@@ -76,6 +91,8 @@ module LuceneExperiment =
         let posts = getPostsForIndexing accessToken username
 
         indexPostsInternal posts
+
+        // facetPostsInternal posts
 
         printfn "Done indexing %i posts for user %s" (posts.Length) username
 
