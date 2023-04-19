@@ -9,11 +9,14 @@
     <Compile Include="MastodonClientAdapter.fs" />
     <Compile Include="Serialization.fs" />
     <Compile Include="FileAccess.fs" />
+    <Compile Include="Lucene.fs" />
     <Compile Include="PostSearch.fs" />
     <Compile Include="TimelineAnalysis.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Lucene.Net" Version="4.8.0-beta00016" />
+    <PackageReference Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00016" />
     <PackageReference Include="Mastonet" Version="2.2.2" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="7.0.0" />

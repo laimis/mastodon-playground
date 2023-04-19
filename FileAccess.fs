@@ -1,7 +1,13 @@
 namespace MastodonPlayground
 
-module FileAccess =
+module internal FileAccess =
 
+    let getTempDirectoryPath (subdirectory:string) =
+        let tempPath = System.IO.Path.GetTempPath()
+        let path = System.IO.Path.Combine(tempPath, subdirectory)
+        // System.IO.Directory.CreateDirectory(path)
+        path
+        
     let private toFilenameWithPostfix (postfix:string) (username:string) =
         System.IO.Path.Combine(
             System.IO.Path.GetTempPath(),
@@ -24,13 +30,13 @@ module FileAccess =
         | false ->
             None
 
-    let internal getUserPosts =
+    let getUserPosts =
         getUserPostsUsingFilename toFilenameMinuteGranularity
 
-    let internal getUserPostsLastFetchTime =
+    let getUserPostsLastFetchTime =
         getUserPostsUsingFilename toFilenameLatest
 
-    let internal saveUserPosts username content =
+    let saveUserPosts username content =
         [
             toFilenameMinuteGranularity // save it with minute frequency
             toFilenameLatest            // save it with latest

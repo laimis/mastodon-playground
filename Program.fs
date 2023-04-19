@@ -11,11 +11,13 @@ type Command =
     | PrintHelpWithError of string
     | TimelineAnalysis of AccessToken * Username
     | PostSearch of AccessToken * Username * SearchTerm
+    | PostLuceneIndex of AccessToken * Username
 
-let builder = new ConfigurationBuilder()
-builder.AddUserSecrets<Something>() |> ignore // had to create this type to get it to work
-let config = builder.Build()
-let accessToken = config["accesstoken"]
+let retrieveAccessToken() =
+    let builder = new ConfigurationBuilder()
+    builder.AddUserSecrets<Something>() |> ignore // had to create this type to get it to work
+    let config = builder.Build()
+    config["accesstoken"]
 
 let printUsage() =
     printfn "Usage: dotnet run <command> <search term>"
@@ -29,6 +31,7 @@ let printError (error:string) =
     System.Console.Error.WriteLine(error);
     System.Console.ForegroundColor <- originalColor;
 
+let accessToken = retrieveAccessToken()
 match accessToken with
 | null -> 
     printfn "No access token, please add it to user secrets using 'dotnet user-secrets set \"accesstoken\" \"<value>\"'"
@@ -47,10 +50,7 @@ let collectUsername() =
     | _ -> 
         Some username
 
-
-let commandLineArgs = System.Environment.GetCommandLineArgs()
-
-let command = 
+let parseCommand commandLineArgs =
     let term = commandLineArgs |> Array.tryItem 1
     match term with
     | None -> 
@@ -60,6 +60,9 @@ let command =
         | "timeline" -> 
             let username = collectUsername() |> Option.get
             TimelineAnalysis(accessToken, username)
+        | "luceneindex" ->
+            let username = collectUsername() |> Option.get
+            PostLuceneIndex(accessToken, username)
         | "search" ->
             let termValue = commandLineArgs |> Array.tryItem 2
             match termValue with
@@ -70,9 +73,14 @@ let command =
                 PostSearch(accessToken, username, termValue)
         | _ -> PrintHelp
 
+let previousTitle = System.Console.Title
+System.Console.Title <- "Mastodon Playground"
+let commandLineArgs = System.Environment.GetCommandLineArgs()
+
 commandLineArgs |> Array.contains "--verbose" |> MastodonPlayground.Configuration.setVerbose
 commandLineArgs |> Array.contains "--cached" |> MastodonPlayground.Configuration.setUseCache
 
+let command = parseCommand commandLineArgs
 match command with
 | PrintHelp -> 
     printUsage()
@@ -83,3 +91,7 @@ match command with
     MastodonPlayground.TimelineAnalysis.run accessToken username  
 | PostSearch(accessToken, username, termValue) ->
     MastodonPlayground.PostSearch.run accessToken username termValue
+| PostLuceneIndex(accessToken, username) ->
+    MastodonPlayground.LuceneExperiment.indexPosts accessToken username
+
+System.Console.Title <- previousTitle
