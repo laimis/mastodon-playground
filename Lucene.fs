@@ -14,10 +14,17 @@ module LuceneExperiment =
     let private luceneVersion = LuceneVersion.LUCENE_48;
     let private luceneIndexLocation = FileAccess.getTempDirectoryPath "luceneIndex";
     let private luceneTaxonomyLocation = FileAccess.getTempDirectoryPath "luceneTaxonomy";
+
+    let private FIELD_AUTHOR = "author"
+    let private FIELD_CONTENT = "content"
+    let private FIELD_URL = "url"
+    let private FIELD_CREATED_AT = "created_at"
+    let private FIELD_TAG = "tag"
+
     let private facetConfig =
         let config = new FacetsConfig()
-        config.SetMultiValued("tag", true)
-        config.SetHierarchical("created", true)
+        config.SetMultiValued(FIELD_TAG, true)
+        config.SetHierarchical(FIELD_CREATED_AT, true)
         config
 
     let getPostsForIndexing accessToken username =
@@ -45,16 +52,16 @@ module LuceneExperiment =
     let private toDocumentWithCategories (post:Mastonet.Entities.Status) =
         let doc = new Document();
         
-        doc.Add(new TextField("author", post.Account.AccountName, Field.Store.YES));
-        doc.Add(new FacetField("author", post.Account.AccountName))
-        doc.Add(new TextField("content", post.Content, Field.Store.YES));
-        doc.Add(new TextField("url", post.Url, Field.Store.YES));
-        doc.Add(new TextField("created_at", post.CreatedAt.ToString("o"), Field.Store.YES));
-        doc.Add(new FacetField("created", post.CreatedAt.Year.ToString(), post.CreatedAt.Month.ToString()))
+        doc.Add(new TextField(FIELD_AUTHOR, post.Account.AccountName, Field.Store.YES));
+        doc.Add(new FacetField(FIELD_AUTHOR, post.Account.AccountName))
+        doc.Add(new TextField(FIELD_CONTENT, post.Content, Field.Store.YES));
+        doc.Add(new TextField(FIELD_URL, post.Url, Field.Store.YES));
+        doc.Add(new TextField(FIELD_CREATED_AT, post.CreatedAt.ToString("o"), Field.Store.YES));
+        doc.Add(new FacetField(FIELD_CREATED_AT, post.CreatedAt.Year.ToString(), post.CreatedAt.Month.ToString()))
         
         // add tags as separate fields
-        post.Tags |> Seq.iter (fun t -> doc.Add(new TextField("tag", t.Name, Field.Store.YES)));
-        post.Tags |> Seq.iter (fun t -> doc.Add(new FacetField("tag", t.Name)))
+        post.Tags |> Seq.iter (fun t -> doc.Add(new TextField(FIELD_TAG, t.Name, Field.Store.YES)));
+        post.Tags |> Seq.iter (fun t -> doc.Add(new FacetField(FIELD_TAG, t.Name)))
 
         doc
 
@@ -107,7 +114,7 @@ module LuceneExperiment =
         use indexDir = FSDirectory.Open(luceneIndexLocation)
         let searcher = new IndexSearcher(DirectoryReader.Open(indexDir))
         let queryBuilder = new QueryBuilder(new StandardAnalyzer(luceneVersion))
-        let query = queryBuilder.CreatePhraseQuery("content", searchQuery, 1)
+        let query = queryBuilder.CreatePhraseQuery(FIELD_CONTENT, searchQuery, 1)
         
         // now facets
         use taxonomyDir = FSDirectory.Open(luceneTaxonomyLocation)
@@ -118,13 +125,13 @@ module LuceneExperiment =
         printfn "Found %i posts" topDocs.TotalHits
 
         let facets = new FastTaxonomyFacetCounts(FacetsConfig.DEFAULT_INDEX_FIELD_NAME, taxoReader, facetConfig, collector);
-        let tagFacets = facets.GetTopChildren(10, "tag")
+        let tagFacets = facets.GetTopChildren(10, FIELD_TAG)
         tagFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
-        let authorFacets = facets.GetTopChildren(10, "author")
+        let authorFacets = facets.GetTopChildren(10, FIELD_AUTHOR)
         authorFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
-        let createdFacets = facets.GetTopChildren(10, "created")
+        let createdFacets = facets.GetTopChildren(10, FIELD_CREATED_AT)
         createdFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
-        let createdMonthFacets = facets.GetTopChildren(10, "created", "2023")
+        let createdMonthFacets = facets.GetTopChildren(10, FIELD_CREATED_AT, "2023")
         createdMonthFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
 
         System.Console.WriteLine("Press any key to continue...")
@@ -133,11 +140,11 @@ module LuceneExperiment =
         topDocs.ScoreDocs
         |> Array.map (fun scoreDoc -> (scoreDoc, searcher.Doc(scoreDoc.Doc)))
         |> Array.iter (fun (scoreDoc, doc) ->
-            printfn "%s" (doc.Get("content"))
-            printfn "URL: %s" (doc.Get("url"))
-            printfn "Created: %s" (doc.Get("created_at"))
-            doc.GetValues("tag") |> Array.iter (fun tag -> printfn "Tag: %s" tag)
-            printfn "Author: %s" (doc.Get("author"))
+            printfn "%s" (doc.Get(FIELD_CONTENT))
+            printfn "URL: %s" (doc.Get(FIELD_URL))
+            printfn "Created: %s" (doc.Get(FIELD_CREATED_AT))
+            doc.GetValues(FIELD_TAG) |> Array.iter (fun tag -> printfn "Tag: %s" tag)
+            printfn "Author: %s" (doc.Get(FIELD_AUTHOR))
             printfn "Score: %f" (scoreDoc.Score)
             printfn ""
         )
