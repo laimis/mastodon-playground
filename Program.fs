@@ -12,6 +12,7 @@ type Command =
     | TimelineAnalysis of AccessToken * Username
     | PostSearch of AccessToken * Username * SearchTerm
     | PostLuceneIndex of AccessToken * Username
+    | PostLuceneSearch of SearchTerm
 
 let retrieveAccessToken() =
     let builder = new ConfigurationBuilder()
@@ -63,6 +64,13 @@ let parseCommand commandLineArgs =
         | "luceneindex" ->
             let username = collectUsername() |> Option.get
             PostLuceneIndex(accessToken, username)
+        | "lucenesearch" ->
+            let termValue = commandLineArgs |> Array.tryItem 2
+            match termValue with
+            | None -> 
+                PrintHelpWithError "No search term provided"
+            | Some termValue -> 
+                PostLuceneSearch termValue
         | "search" ->
             let termValue = commandLineArgs |> Array.tryItem 2
             match termValue with
@@ -93,5 +101,7 @@ match command with
     MastodonPlayground.PostSearch.run accessToken username termValue
 | PostLuceneIndex(accessToken, username) ->
     MastodonPlayground.LuceneExperiment.indexPosts accessToken username
+| PostLuceneSearch termValue ->
+    MastodonPlayground.LuceneExperiment.searchPosts termValue
 
 System.Console.Title <- previousTitle
