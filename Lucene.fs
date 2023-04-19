@@ -14,6 +14,11 @@ module LuceneExperiment =
     let private luceneVersion = LuceneVersion.LUCENE_48;
     let private luceneIndexLocation = FileAccess.getTempDirectoryPath "luceneIndex";
     let private luceneTaxonomyLocation = FileAccess.getTempDirectoryPath "luceneTaxonomy";
+    let private facetConfig =
+        let config = new FacetsConfig()
+        config.SetMultiValued("tag", true)
+        config.SetHierarchical("created", true)
+        config
 
     let getPostsForIndexing accessToken username =
         match Configuration.doUseCache with
@@ -41,6 +46,7 @@ module LuceneExperiment =
         let doc = new Document();
         
         doc.Add(new TextField("author", post.Account.AccountName, Field.Store.YES));
+        doc.Add(new FacetField("author", post.Account.AccountName))
         doc.Add(new TextField("content", post.Content, Field.Store.YES));
         doc.Add(new TextField("url", post.Url, Field.Store.YES));
         doc.Add(new TextField("created_at", post.CreatedAt.ToString("o"), Field.Store.YES));
@@ -59,9 +65,6 @@ module LuceneExperiment =
         // facet bits
         use taxonomyDir = FSDirectory.Open(luceneTaxonomyLocation);
         use taxonomyWriter = new DirectoryTaxonomyWriter(taxonomyDir, OpenMode.CREATE)
-        let facetConfig = new FacetsConfig()
-        facetConfig.SetMultiValued("tag", true)
-        facetConfig.SetHierarchical("created", true)
         
         // index writing bits
         use indexDir = FSDirectory.Open(luceneIndexLocation);
@@ -100,17 +103,32 @@ module LuceneExperiment =
 
         printfn "Searching posts for query %s" searchQuery
 
+        // search
         use indexDir = FSDirectory.Open(luceneIndexLocation)
-
         let searcher = new IndexSearcher(DirectoryReader.Open(indexDir))
-
         let queryBuilder = new QueryBuilder(new StandardAnalyzer(luceneVersion))
-
         let query = queryBuilder.CreatePhraseQuery("content", searchQuery, 1)
         
-        let topDocs = searcher.Search(query, 10);
+        // now facets
+        use taxonomyDir = FSDirectory.Open(luceneTaxonomyLocation)
+        let taxoReader = new DirectoryTaxonomyReader(taxonomyDir)
+        let collector = new FacetsCollector()
+        let topDocs = FacetsCollector.Search(searcher, query, 10, collector)
 
         printfn "Found %i posts" topDocs.TotalHits
+
+        let facets = new FastTaxonomyFacetCounts(FacetsConfig.DEFAULT_INDEX_FIELD_NAME, taxoReader, facetConfig, collector);
+        let tagFacets = facets.GetTopChildren(10, "tag")
+        tagFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
+        let authorFacets = facets.GetTopChildren(10, "author")
+        authorFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
+        let createdFacets = facets.GetTopChildren(10, "created")
+        createdFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
+        let createdMonthFacets = facets.GetTopChildren(10, "created", "2023")
+        createdMonthFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
+
+        System.Console.WriteLine("Press any key to continue...")
+        System.Console.ReadLine() |> ignore
 
         topDocs.ScoreDocs
         |> Array.map (fun scoreDoc -> (scoreDoc, searcher.Doc(scoreDoc.Doc)))
