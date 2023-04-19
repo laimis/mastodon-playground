@@ -38,8 +38,10 @@ module LuceneExperiment =
         doc.Add(new TextField("author", post.Account.AccountName, Field.Store.YES));
         doc.Add(new TextField("content", post.Content, Field.Store.YES));
         doc.Add(new TextField("url", post.Url, Field.Store.YES));
-        doc.Add(new TextField("tags", post.Tags |> Seq.map (fun t -> t.Name) |> String.concat " ", Field.Store.YES));
         doc.Add(new TextField("created_at", post.CreatedAt.ToString("o"), Field.Store.YES));
+
+        // add tags as separate fields
+        post.Tags |> Seq.iter (fun t -> doc.Add(new TextField("tag", t.Name, Field.Store.YES)));
         
         doc
 
@@ -81,19 +83,26 @@ module LuceneExperiment =
 
         printfn "Searching posts for query %s" searchQuery
 
-        use indexDir = FSDirectory.Open(luceneIndexLocation);
+        use indexDir = FSDirectory.Open(luceneIndexLocation)
 
-        let searcher = new IndexSearcher(DirectoryReader.Open(indexDir));
+        let searcher = new IndexSearcher(DirectoryReader.Open(indexDir))
 
-        let query = new TermQuery(new Term("content", "searchQuery"));
+        let queryBuilder = new QueryBuilder(new StandardAnalyzer(luceneVersion))
 
+        let query = queryBuilder.CreatePhraseQuery("content", searchQuery, 1)
+        
         let topDocs = searcher.Search(query, 10);
 
         printfn "Found %i posts" topDocs.TotalHits
 
         topDocs.ScoreDocs
-        |> Array.map (fun x -> searcher.Doc(x.Doc))
-        |> Array.iter (fun x ->
-            printfn "%s" (x.Get("content"))
-            printfn "%s" (x.Get("url"))
+        |> Array.map (fun scoreDoc -> (scoreDoc, searcher.Doc(scoreDoc.Doc)))
+        |> Array.iter (fun (scoreDoc, doc) ->
+            printfn "%s" (doc.Get("content"))
+            printfn "URL: %s" (doc.Get("url"))
+            printfn "Created: %s" (doc.Get("created_at"))
+            doc.GetValues("tag") |> Array.iter (fun tag -> printfn "Tag: %s" tag)
+            printfn "Author: %s" (doc.Get("author"))
+            printfn "Score: %f" (scoreDoc.Score)
+            printfn ""
         )
