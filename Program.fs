@@ -69,7 +69,10 @@ let parseCommand commandLineArgs =
             match termValue with
             | None -> 
                 PrintHelpWithError "No search term provided"
-            | Some termValue -> 
+            | Some termValue ->
+                // show what's available
+                printfn "Available indexes:"
+                MastodonPlayground.LuceneExperiment.availableIndexes() |> Array.iter (fun x -> printfn "%s" x)
                 let username = collectUsername() |> Option.get
                 PostLuceneSearch(username, termValue)
         | "search" ->

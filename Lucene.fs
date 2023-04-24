@@ -22,12 +22,19 @@ module LuceneExperiment =
             path,
             (username |> cleanUsername)
         )
+    
+    let private tempDirectory =
+        FileAccess.getTempDirectoryPath
 
     let private luceneIndexLocation =
-        FileAccess.getTempDirectoryPath "luceneIndex" |> combine
+        "luceneIndex" |> tempDirectory  |> combine
 
     let private luceneTaxonomyLocation = 
-        FileAccess.getTempDirectoryPath "luceneTaxonomy" |> combine
+        "luceneTaxonomy" |> tempDirectory |> combine
+
+    let availableIndexes() =
+        let indexLocation = "luceneIndex" |> tempDirectory
+        FileAccess.getFolders indexLocation
 
     let private FIELD_AUTHOR = "author"
     let private FIELD_CONTENT = "content"
@@ -81,6 +88,7 @@ module LuceneExperiment =
         // index writing bits
         use indexDir = FSDirectory.Open(indexLocation);
         let standardAnalyzer = new StandardAnalyzer(luceneVersion);
+
         let indexConfig = new IndexWriterConfig(luceneVersion, standardAnalyzer);
         indexConfig.OpenMode <- OpenMode.CREATE
         use writer = new IndexWriter(indexDir, indexConfig);
@@ -131,16 +139,25 @@ module LuceneExperiment =
         printfn "Found %i posts" topDocs.TotalHits
 
         let facets = new FastTaxonomyFacetCounts(FacetsConfig.DEFAULT_INDEX_FIELD_NAME, taxoReader, facetConfig, collector);
-        let tagFacets = facets.GetTopChildren(10, FIELD_TAG)
-        if (tagFacets = null |> not) then
-            tagFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
-        let authorFacets = facets.GetTopChildren(10, FIELD_AUTHOR)
-        authorFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
-        let createdFacets = facets.GetTopChildren(10, FIELD_CREATED_AT)
-        createdFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
-        let createdMonthFacets = facets.GetTopChildren(10, FIELD_CREATED_AT, "2023")
-        createdMonthFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
 
+        let printFacets subField field =
+            let matchedFacets = 
+                match subField with
+                | None -> facets.GetTopChildren(10, field)
+                | Some subField -> 
+                    let arr = subField |> Array.ofList
+                    facets.GetTopChildren(10, field, arr)
+
+            match matchedFacets with
+            | null -> ()
+            | _ ->
+                matchedFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
+
+        FIELD_TAG |> printFacets None
+        FIELD_AUTHOR |> printFacets None
+        FIELD_CREATED_AT |> printFacets None
+        FIELD_CREATED_AT |> printFacets (Some ["2023"])
+        
         System.Console.WriteLine("Press any key to continue...")
         System.Console.ReadLine() |> ignore
 

@@ -2,6 +2,9 @@ namespace MastodonPlayground
 
 module internal FileAccess =
 
+    let getFolders path =
+        System.IO.Directory.GetDirectories(path)
+        
     let getTempDirectoryPath (subdirectory:string) =
         let tempPath = System.IO.Path.GetTempPath()
         let path = System.IO.Path.Combine(tempPath, subdirectory)
