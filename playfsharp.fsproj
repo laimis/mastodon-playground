@@ -6,9 +6,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Configuration.fs" />
-    <Compile Include="MastodonClientAdapter.fs" />
     <Compile Include="Serialization.fs" />
     <Compile Include="FileAccess.fs" />
+    <Compile Include="MastodonClientAdapter.fs" />
     <Compile Include="Lucene.fs" />
     <Compile Include="PostSearch.fs" />
     <Compile Include="TimelineAnalysis.fs" />

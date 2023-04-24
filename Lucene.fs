@@ -12,8 +12,22 @@ module LuceneExperiment =
     open Lucene.Net.Facet
 
     let private luceneVersion = LuceneVersion.LUCENE_48;
-    let private luceneIndexLocation = FileAccess.getTempDirectoryPath "luceneIndex";
-    let private luceneTaxonomyLocation = FileAccess.getTempDirectoryPath "luceneTaxonomy";
+
+    let cleanUsername (username:string) =
+        //username.Replace("@", "_").Replace(".", "_")
+        username
+        
+    let combine path (username:string) =
+        System.IO.Path.Combine(
+            path,
+            (username |> cleanUsername)
+        )
+
+    let private luceneIndexLocation =
+        FileAccess.getTempDirectoryPath "luceneIndex" |> combine
+
+    let private luceneTaxonomyLocation = 
+        FileAccess.getTempDirectoryPath "luceneTaxonomy" |> combine
 
     let private FIELD_AUTHOR = "author"
     let private FIELD_CONTENT = "content"
@@ -27,54 +41,45 @@ module LuceneExperiment =
         config.SetHierarchical(FIELD_CREATED_AT, true)
         config
 
-    let getPostsForIndexing accessToken username =
-        match Configuration.doUseCache with
-        | true ->
-            printfn "Getting posts from cache"
-            let fromFilesystem = FileAccess.getUserPostsLastFetchTime username
-
-            match fromFilesystem with
-            | Some content ->
-                content
-                |> Serialization.deserialize<List<Mastonet.Entities.Status>>
-            | None -> 
-                []
-
-        | false ->
-            printfn "Getting posts from Mastodon"
-            let fromApi = MastodonClientAdapter.getPosts accessToken username
-            
-            match fromApi with
-            | None -> 
-                []
-            | Some unwrapped -> unwrapped
-
     let private toDocumentWithCategories (post:Mastonet.Entities.Status) =
         let doc = new Document();
         
-        doc.Add(new TextField(FIELD_AUTHOR, post.Account.AccountName, Field.Store.YES));
-        doc.Add(new FacetField(FIELD_AUTHOR, post.Account.AccountName))
-        doc.Add(new TextField(FIELD_CONTENT, post.Content, Field.Store.YES));
-        doc.Add(new TextField(FIELD_URL, post.Url, Field.Store.YES));
-        doc.Add(new TextField(FIELD_CREATED_AT, post.CreatedAt.ToString("o"), Field.Store.YES));
-        doc.Add(new FacetField(FIELD_CREATED_AT, post.CreatedAt.Year.ToString(), post.CreatedAt.Month.ToString()))
+        let getValue func (post:Mastonet.Entities.Status) =
+            match post.Reblog with
+            | null -> func post
+            | _ -> func post.Reblog
+
+        let author = getValue (fun p -> p.Account.AccountName) post
+        let createdAt = getValue (fun p -> p.CreatedAt) post
+        let tags = getValue (fun p -> p.Tags) post
+
+        doc.Add(new TextField(FIELD_AUTHOR, author, Field.Store.YES));
+        doc.Add(new FacetField(FIELD_AUTHOR, author))
+        doc.Add(new TextField(FIELD_CONTENT, (getValue (fun p -> p.Content) post), Field.Store.YES));
+        doc.Add(new TextField(FIELD_URL, (getValue (fun p -> p.Url) post), Field.Store.YES));
+        doc.Add(new TextField(FIELD_CREATED_AT, createdAt.ToString("o"), Field.Store.YES));
+        doc.Add(new FacetField(FIELD_CREATED_AT, createdAt.Year.ToString(), createdAt.Month.ToString()))
         
         // add tags as separate fields
-        post.Tags |> Seq.iter (fun t -> doc.Add(new TextField(FIELD_TAG, t.Name, Field.Store.YES)));
-        post.Tags |> Seq.iter (fun t -> doc.Add(new FacetField(FIELD_TAG, t.Name)))
+        tags |> Seq.iter (fun t -> doc.Add(new TextField(FIELD_TAG, t.Name, Field.Store.YES)));
+        tags |> Seq.iter (fun t -> doc.Add(new FacetField(FIELD_TAG, t.Name)))
 
         doc
 
-    let private indexPostsInternal posts =
+    let private indexPostsInternal username posts =
         
-        printfn "Lucene index location: %s" luceneIndexLocation
+        let indexLocation = username |> luceneIndexLocation
+        printfn "Lucene index location: %s" indexLocation
+
+        let facetLocation = username |> luceneTaxonomyLocation
+        printfn "Lucene taxonomy location: %s" facetLocation
 
         // facet bits
-        use taxonomyDir = FSDirectory.Open(luceneTaxonomyLocation);
+        use taxonomyDir = FSDirectory.Open(facetLocation);
         use taxonomyWriter = new DirectoryTaxonomyWriter(taxonomyDir, OpenMode.CREATE)
         
         // index writing bits
-        use indexDir = FSDirectory.Open(luceneIndexLocation);
+        use indexDir = FSDirectory.Open(indexLocation);
         let standardAnalyzer = new StandardAnalyzer(luceneVersion);
         let indexConfig = new IndexWriterConfig(luceneVersion, standardAnalyzer);
         indexConfig.OpenMode <- OpenMode.CREATE
@@ -98,26 +103,27 @@ module LuceneExperiment =
         printfn "Indexing posts for user %s" username
         
         // get posts from either local cache or API
-        let posts = getPostsForIndexing accessToken username
+        let posts = username |> MastodonClientAdapter.getPostsFromFileOrWeb accessToken
 
-        indexPostsInternal posts
+        match posts with
+        | [] -> 
+            printfn "No posts to index for user %s" username
+        | _ ->
+            posts |> indexPostsInternal username
+            printfn "Done indexing %i posts for user %s" (posts.Length) username
 
-        // facetPostsInternal posts
-
-        printfn "Done indexing %i posts for user %s" (posts.Length) username
-
-    let searchPosts searchQuery =
+    let searchPosts username searchQuery =
 
         printfn "Searching posts for query %s" searchQuery
 
         // search
-        use indexDir = FSDirectory.Open(luceneIndexLocation)
+        use indexDir = FSDirectory.Open(username |> luceneIndexLocation)
         let searcher = new IndexSearcher(DirectoryReader.Open(indexDir))
         let queryBuilder = new QueryBuilder(new StandardAnalyzer(luceneVersion))
         let query = queryBuilder.CreatePhraseQuery(FIELD_CONTENT, searchQuery, 1)
         
         // now facets
-        use taxonomyDir = FSDirectory.Open(luceneTaxonomyLocation)
+        use taxonomyDir = FSDirectory.Open(username |> luceneTaxonomyLocation)
         let taxoReader = new DirectoryTaxonomyReader(taxonomyDir)
         let collector = new FacetsCollector()
         let topDocs = FacetsCollector.Search(searcher, query, 10, collector)
@@ -126,7 +132,8 @@ module LuceneExperiment =
 
         let facets = new FastTaxonomyFacetCounts(FacetsConfig.DEFAULT_INDEX_FIELD_NAME, taxoReader, facetConfig, collector);
         let tagFacets = facets.GetTopChildren(10, FIELD_TAG)
-        tagFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
+        if (tagFacets = null |> not) then
+            tagFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
         let authorFacets = facets.GetTopChildren(10, FIELD_AUTHOR)
         authorFacets.LabelValues |> Seq.iter (fun (labelValue) -> printfn "%s: %f" (labelValue.Label) (labelValue.Value))
         let createdFacets = facets.GetTopChildren(10, FIELD_CREATED_AT)

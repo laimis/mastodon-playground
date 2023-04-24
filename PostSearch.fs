@@ -4,32 +4,6 @@ module PostSearch =
     open MastodonClientAdapter
 
 
-    let private getPostsFromFileOrWeb accessToken username =
-        
-        let localCache =
-            match Configuration.doUseCache with
-            | true ->
-                printfn "Getting posts from cache"
-                FileAccess.getUserPosts username
-            | false -> None
-
-        match localCache with
-        | Some content ->
-            content |> Serialization.deserialize<List<Mastonet.Entities.Status>>
-        | None ->
-            printfn "Getting posts from API"
-            let postsOption = getPosts accessToken username
-
-            match postsOption with
-            | None -> 
-                printfn "No posts found"
-                []
-            | Some posts -> 
-                posts 
-                    |> Serialization.serialize
-                    |> FileAccess.saveUserPosts username
-                posts
-
     let run accessToken username (term:string) =
         
         let getContentForStatus (status:Mastonet.Entities.Status) =

@@ -28,6 +28,7 @@ module internal FileAccess =
             printfn "Loading posts from file %s" postsFile
             Some (System.IO.File.ReadAllText(postsFile))
         | false ->
+            printfn "No posts file found at %s" postsFile
             None
 
     let getUserPosts =

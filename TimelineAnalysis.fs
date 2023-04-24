@@ -42,7 +42,7 @@ module TimelineAnalysis =
         // get the average number of posts per day
         let avg =
             postsGroupedByDate
-            |> Seq.map (fun (date, posts) -> posts |> Seq.length |> float)
+            |> Seq.map (fun (_, posts) -> posts |> Seq.length |> float)
             |> Seq.average
 
         let maxStars = 20.0
