@@ -10,6 +10,10 @@ module LuceneExperiment =
     open Lucene.Net.Facet.Taxonomy
     open Lucene.Net.Facet.Taxonomy.Directory
     open Lucene.Net.Facet
+    open Lucene.Net.QueryParsers.Classic
+    open Lucene.Net.Analysis.Core
+    open Lucene.Net.QueryParsers.Flexible.Standard.Parser
+    open Lucene.Net.QueryParsers.Flexible.Core.Parser
 
     let private luceneVersion = LuceneVersion.LUCENE_48;
 
@@ -41,6 +45,7 @@ module LuceneExperiment =
     let private FIELD_URL = "url"
     let private FIELD_CREATED_AT = "created_at"
     let private FIELD_TAG = "tag"
+    let private RESULT_LIMIT = 50
 
     let private facetConfig =
         let config = new FacetsConfig()
@@ -60,7 +65,7 @@ module LuceneExperiment =
         let createdAt = getValue (fun p -> p.CreatedAt) post
         let tags = getValue (fun p -> p.Tags) post
 
-        doc.Add(new TextField(FIELD_AUTHOR, author, Field.Store.YES));
+        doc.Add(new StringField(FIELD_AUTHOR, author, Field.Store.YES));
         doc.Add(new FacetField(FIELD_AUTHOR, author))
         doc.Add(new TextField(FIELD_CONTENT, (getValue (fun p -> p.Content) post), Field.Store.YES));
         doc.Add(new TextField(FIELD_URL, (getValue (fun p -> p.Url) post), Field.Store.YES));
@@ -120,6 +125,18 @@ module LuceneExperiment =
             posts |> indexPostsInternal username
             printfn "Done indexing %i posts for user %s" (posts.Length) username
 
+    let createQueryWithQueryParser input =
+        let analyzer = new StandardAnalyzer(luceneVersion)
+        let parser = new QueryParser(luceneVersion, FIELD_CONTENT, analyzer)
+        parser.Parse(input)
+
+    let createPhraseQueryWithQueryBuilderAndSlop slop input =
+        let queryBuilder = new QueryBuilder(new StandardAnalyzer(luceneVersion))
+        queryBuilder.CreatePhraseQuery(FIELD_CONTENT, input, slop)
+
+    let createPhraseQueryWithQueryBuilder =
+        createPhraseQueryWithQueryBuilderAndSlop 2
+
     let searchPosts username searchQuery =
 
         printfn "Searching posts for query %s" searchQuery
@@ -127,14 +144,15 @@ module LuceneExperiment =
         // search
         use indexDir = FSDirectory.Open(username |> luceneIndexLocation)
         let searcher = new IndexSearcher(DirectoryReader.Open(indexDir))
-        let queryBuilder = new QueryBuilder(new StandardAnalyzer(luceneVersion))
-        let query = queryBuilder.CreatePhraseQuery(FIELD_CONTENT, searchQuery, 1)
-        
+
+        let query = searchQuery |> createPhraseQueryWithQueryBuilder
+        System.Console.WriteLine("Parsed query: " + query.ToString())
+
         // now facets
         use taxonomyDir = FSDirectory.Open(username |> luceneTaxonomyLocation)
         let taxoReader = new DirectoryTaxonomyReader(taxonomyDir)
         let collector = new FacetsCollector()
-        let topDocs = FacetsCollector.Search(searcher, query, 10, collector)
+        let topDocs = FacetsCollector.Search(searcher, query, RESULT_LIMIT, collector)
 
         printfn "Found %i posts" topDocs.TotalHits
 
